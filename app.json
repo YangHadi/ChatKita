@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "ChatKita",
+    "slug": "chatkita",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "simplechat",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yanghadi.chatkita"
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "package": "com.yanghadi.chatkita",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "image": "./assets/icon.png"
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "17a2ea31-acc0-42f8-a96d-b8fb96b83003"
+      }
+    }
+  }
+}
