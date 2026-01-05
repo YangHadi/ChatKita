@@ -18,9 +18,7 @@ export default function AuthScreen() {
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [showPassword, setShowPassword] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [suspensionMessage, setSuspensionMessage] = useState<string | null>(null);
-
-  const SUPERADMIN_KEY = "secretadmin";
+  const [suspensionDetails, setSuspensionDetails] = useState<{ message: string; reason?: string; endDate?: string } | null>(null);
 
   const BASE_URL = API_BASE_URL;
 
@@ -38,21 +36,22 @@ export default function AuthScreen() {
   ];
 
   useEffect(() => {
-    if (message) {
-      const timer = setTimeout(() => setMessage(''), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
+    const checkLogin = async () => {
+      const savedUser = await SecureStore.getItemAsync("user");
 
-  useEffect(() => {
-  const checkLogin = async () => {
-    const savedUser = await SecureStore.getItemAsync("user");
-    if (savedUser) {
-      router.replace('/home');
-    }
-  };
-  checkLogin();
-}, []);
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+
+        if (parsed.role === 'superadmin') {
+          router.replace('/sadmindashboard');
+        } else {
+          router.replace('/home');
+        }
+      }
+    };
+
+    checkLogin();
+  }, []);
 
 
   const handleRegister = async () => {
@@ -107,54 +106,56 @@ export default function AuthScreen() {
       return;
     }
 
-  // 🔥 SUPERADMIN LOGIN (no backend check)
-  if (username.includes(SUPERADMIN_KEY) || password.includes(SUPERADMIN_KEY)) {
-    console.log("Superadmin keyword detected — redirecting to dashboard...");
-
-    await AsyncStorage.setItem("superadmin", "true");
-
-    setShowWelcome(true);
-    setTimeout(() => {
-      router.replace('/sadmindashboard');   // make sure this screen exists
-    }, 1500);
-
-    return; // stop normal login flow
-  }
-
     try {
-      const res = await axios.post(`${BASE_URL}/login.php`,
+      const res = await axios.post(
+        `${BASE_URL}/login.php`,
         { username, password },
         { headers: { "Content-Type": "application/json" } }
       );
 
-      console.log("Login attempt from username:", username);
       console.log("Login response:", res.data);
 
-      const userID = res?.data?.id;
+      if (res?.data?.success) {
+        const { id, role } = res.data.user;
 
-      if (res?.data?.status === 'success' && userID) {
-        await AsyncStorage.setItem('userID', userID.toString());
-        await AsyncStorage.setItem('username', username);
-        await SecureStore.setItemAsync("user", JSON.stringify({
-          id: res.data.id,
-          username: res.data.username
-        }));
+        // ✅ Save session (local)
+        await AsyncStorage.multiSet([
+          ['userID', id.toString()],
+          ['username', username],
+          ['role', role],
+        ]);
+
+        // ✅ Save secure session
+        await SecureStore.setItemAsync(
+          "user",
+          JSON.stringify({ id, username, role })
+        );
+
         setShowWelcome(true);
+
         setTimeout(() => {
-          router.replace('/home');
-        }, 2000);
+          // 🔀 ROLE-BASED ROUTING
+          if (role === 'superadmin') {
+            router.replace('/sadmindashboard');
+          } else {
+            router.replace('/home');
+          }
+        }, 1500);
+
       } else if (res?.data?.status === 'suspended') {
-        // Show the new suspension modal instead of the small text message
-        setSuspensionMessage(res?.data?.message || "Your account is suspended.");
+        setSuspensionDetails({
+          message: res?.data?.message || "Your account is suspended.",
+          reason: res?.data?.reason,
+          endDate: res?.data?.end_date
+        });
       } else {
-        setMessage(res?.data?.message || "Incorrect username or password. Try again.");
+        setMessage(res?.data?.message || "Incorrect username or password.");
         setMessageType('error');
-        // clearInputs();
       }
-    } catch (err: any) {
+
+    } catch (err) {
       setMessage("Login failed. Please try again.");
       setMessageType('error');
-      // clearInputs();
       console.log(err);
     }
   };
@@ -248,20 +249,42 @@ export default function AuthScreen() {
       {/* Suspension Modal */}
       <Modal
         transparent
-        visible={!!suspensionMessage}
+        visible={!!suspensionDetails}
         animationType="fade"
-        onRequestClose={() => setSuspensionMessage(null)}
+        onRequestClose={() => setSuspensionDetails(null)}
       >
-        <Pressable style={styles.alertBackdrop} onPress={() => setSuspensionMessage(null)}>
-          <Pressable>
-            <Animated.View entering={FadeIn.duration(200)} style={styles.alertContainer}>
-              <Ionicons name="ban" size={48} color="#E74C3C" style={{ alignSelf: 'center', marginBottom: 12 }} />
-              <Text style={styles.alertTitle}>Account Suspended</Text>
-              <Text style={styles.alertMessage}>{suspensionMessage}</Text>
+        <Pressable style={styles.alertBackdrop} onPress={() => setSuspensionDetails(null)}>
+          <Pressable style={{ width: '85%' }}>
+            <Animated.View entering={FadeIn.duration(200)} style={styles.suspensionCard}>
+              <View style={styles.suspensionHeader}>
+                <Ionicons name="ban" size={48} color="#fff" />
+                <Text style={styles.suspensionTitle}>Account Suspended</Text>
+              </View>
+              
+              <View style={styles.suspensionContent}>
+                <View style={styles.suspensionRow}>
+                  <Text style={styles.suspensionLabel}>User:</Text>
+                  <Text style={styles.suspensionValue}>{username}</Text>
+                </View>
+                {suspensionDetails?.reason ? (
+                  <View style={styles.suspensionRow}>
+                    <Text style={styles.suspensionLabel}>Reason:</Text>
+                    <Text style={styles.suspensionValue}>{suspensionDetails.reason}</Text>
+                  </View>
+                ) : null}
+                {suspensionDetails?.endDate ? (
+                  <View style={styles.suspensionRow}>
+                    <Text style={styles.suspensionLabel}>Ends:</Text>
+                    <Text style={styles.suspensionValue}>{suspensionDetails.endDate}</Text>
+                  </View>
+                ) : null}
+                <Text style={styles.suspensionMessage}>{suspensionDetails?.message}</Text>
+              </View>
+
               <TouchableOpacity
-                style={styles.alertButton}
-                onPress={() => setSuspensionMessage(null)}
-              ><Text style={styles.alertButtonText}>OK</Text></TouchableOpacity>
+                style={styles.suspensionButton}
+                onPress={() => setSuspensionDetails(null)}
+              ><Text style={styles.suspensionButtonText}>Close</Text></TouchableOpacity>
             </Animated.View>
           </Pressable>
         </Pressable>
@@ -290,11 +313,17 @@ const styles = StyleSheet.create({
   success: { color: 'green' },
   error: { color: 'red' },
   welcomeText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
-  // Suspension Alert Styles
+  
+  // Suspension Modal Styles
   alertBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  alertContainer: { width: '100%', backgroundColor: 'white', borderRadius: 16, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
-  alertTitle: { fontSize: 22, fontWeight: 'bold', color: '#333', marginBottom: 12, textAlign: 'center' },
-  alertMessage: { fontSize: 16, color: '#555', textAlign: 'center', marginBottom: 24, lineHeight: 24 },
-  alertButton: { backgroundColor: '#4A90E2', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 8, alignSelf: 'stretch' },
-  alertButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16, textAlign: 'center' },
+  suspensionCard: { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
+  suspensionHeader: { backgroundColor: '#E74C3C', paddingVertical: 20, alignItems: 'center', justifyContent: 'center' },
+  suspensionTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginTop: 8 },
+  suspensionContent: { padding: 20 },
+  suspensionRow: { flexDirection: 'row', marginBottom: 8 },
+  suspensionLabel: { fontWeight: 'bold', color: '#555', width: 70 },
+  suspensionValue: { flex: 1, color: '#333' },
+  suspensionMessage: { marginTop: 12, fontSize: 14, color: '#666', fontStyle: 'italic', textAlign: 'center' },
+  suspensionButton: { backgroundColor: '#333', padding: 15, alignItems: 'center' },
+  suspensionButtonText: { color: '#fff', fontWeight: 'bold' },
 });

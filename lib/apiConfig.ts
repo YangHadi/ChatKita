@@ -4,9 +4,7 @@ import { Platform } from 'react-native';
 // --- Centralized API Configuration ---
 
 // Replace with your computer's local IP address.
-// On Windows, run `ipconfig` in Command Prompt.
-// On macOS/Linux, run `ifconfig` in Terminal.
-const PC_LOCAL_IP = "192.168.88.212";
+const PC_LOCAL_IP = "192.168.88.97";
 
 // The base URL for your backend API.
 // It uses the local IP for Android development and 'localhost' for others (like web).

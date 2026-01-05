@@ -6,22 +6,18 @@ export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
-    const checkLogin = async () => {
-      const userID = await AsyncStorage.getItem('userID');
-      const token = await AsyncStorage.getItem('token');
+    const check = async () => {
+      const id = await AsyncStorage.getItem('userID');
+      const role = await AsyncStorage.getItem('role');
 
-      if (userID && token) {
-        // Already logged in → go to Home
-        router.replace('/home');
-        console.log('User already logged in, navigating to Home...');
-      } else {
-        // Not logged in → go to Auth
-        router.replace('/auth');
-      }
+      if (!id) router.replace('/auth');
+      else if (role === 'superadmin') router.replace('/sadmindashboard');
+      else router.replace('/home');
     };
-    checkLogin();
+
+    check();
   }, []);
 
-  return null; // Nothing to render
+  return null;
 }
 
