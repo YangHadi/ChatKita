@@ -23,6 +23,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import axios from "axios";
 import { API_BASE_URL } from "../lib/apiConfig";
 
 // -------------------- Navigation Types --------------------
@@ -66,7 +67,6 @@ interface UsersResponse {
 
 
 // -------------------- Constants --------------------
-const API_BASE = API_BASE_URL;
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Hardcoded light mode colors
@@ -111,22 +111,26 @@ export default function GroupInfo() {
 
     try {
       setError(null);
-      const res = await fetch(`${API_BASE}/group_member.php?group_id=${GROUP_ID}`);
-      const data = (await res.json()) as GroupMemberResponse;
 
+      const res = await axios.get<GroupMemberResponse>(
+        `${API_BASE_URL}/group_member.php`,
+        { params: { group_id: GROUP_ID } }
+      );
+
+      const data = res.data;
 
       if (data.success && Array.isArray(data.members)) {
         const uniqueMembers: Record<number, Member> = {};
-        data.members.forEach((m: Member) => (uniqueMembers[m.id] = m));
+        data.members.forEach((m) => (uniqueMembers[m.id] = m));
 
         let membersList = Object.values(uniqueMembers);
 
         membersList.sort((a, b) => {
-          if (a.id === userId) return -1; 
+          if (a.id === userId) return -1;
           if (b.id === userId) return 1;
           if (a.role === "Admin" && b.role !== "Admin") return -1;
           if (a.role !== "Admin" && b.role === "Admin") return 1;
-          return a.username.localeCompare(b.username); 
+          return a.username.localeCompare(b.username);
         });
 
         setMembers(membersList);
@@ -153,9 +157,12 @@ export default function GroupInfo() {
   // -------------------- Fetch All Users --------------------
   const fetchAllUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/users.php?id=${userId}&group_id=${GROUP_ID}`);
-      const data = (await res.json()) as UsersResponse;
-      setAllUsers(Array.isArray(data.users) ? data.users : []);
+      const res = await axios.get<UsersResponse>(
+        `${API_BASE_URL}/users.php`,
+        { params: { id: userId, group_id: GROUP_ID } }
+      );
+
+      setAllUsers(Array.isArray(res.data.users) ? res.data.users : []);
     } catch (err) {
       console.error(err);
       setAllUsers([]);
@@ -191,21 +198,24 @@ export default function GroupInfo() {
 
   const addSelectedUsers = async () => {
     if (!userId) return;
+
     if (selectedUsers.length === 0) {
       Alert.alert("No user selected", "Please select at least one user.");
       return;
     }
+
     try {
-      const res = await fetch(`${API_BASE}/group_member.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const res = await axios.post<GroupMemberResponse>(
+        `${API_BASE_URL}/group_member.php`,
+        {
           group_id: GROUP_ID,
           user_ids: selectedUsers,
           logged_in_user: userId,
-        }),
-      });
-      const data = (await res.json()) as GroupMemberResponse;
+        }
+      );
+
+      const data = res.data;
+
       if (data.success) {
         Alert.alert("Success", `Added ${data.added?.length ?? 0} user(s)!`);
         closeAddMemberModal();
@@ -239,24 +249,24 @@ export default function GroupInfo() {
         style: "destructive",
         onPress: async () => {
           try {
-            const res = await fetch(`${API_BASE}/group_member.php`, {
-              method: "DELETE",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                group_id: GROUP_ID,
-                user_ids: [memberId],
-                logged_in_user: userId,
-              }),
-            });
-            const data = (await res.json()) as GroupMemberResponse;
+            const res = await axios.delete<GroupMemberResponse>(
+              `${API_BASE_URL}/group_member.php`,
+              {
+                data: {
+                  group_id: GROUP_ID,
+                  user_ids: [memberId],
+                  logged_in_user: userId,
+                },
+              }
+            );
 
-            if (data.success) {
+            if (res.data.success) {
               Alert.alert("Success", `${memberName} removed.`);
               fetchMembers();
             } else {
               Alert.alert("Error", "Failed to remove user.");
             }
-          } catch (err: any) {
+          } catch (err) {
             console.error("Remove member error:", err);
             Alert.alert("Error", "Failed to remove user.");
           }
@@ -289,24 +299,25 @@ export default function GroupInfo() {
         text: "Yes",
         onPress: async () => {
           try {
-            const res = await fetch(`${API_BASE}/group_member.php`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            const res = await axios.put<GroupMemberResponse>(
+              `${API_BASE_URL}/group_member.php`,
+              {
                 group_id: GROUP_ID,
                 user_id: memberId,
                 logged_in_user: userId,
-              }),
-            });
-            const data = (await res.json()) as GroupMemberResponse;
+              }
+            );
 
-            if (data.success) {
-              Alert.alert("Success", `${memberName} is now ${data.new_role}.`);
+            if (res.data.success) {
+              Alert.alert(
+                "Success",
+                `${memberName} is now ${res.data.new_role}.`
+              );
               fetchMembers();
             } else {
               Alert.alert("Error", "Failed to update role.");
             }
-          } catch (err: any) {
+          } catch (err) {
             console.error("Toggle admin error:", err);
             Alert.alert("Error", "Failed to update role.");
           }
@@ -319,10 +330,13 @@ export default function GroupInfo() {
     if (!userId) return;
 
     try {
-      const res = await fetch(`${API_BASE}/group_member.php?group_id=${GROUP_ID}`);
-      const data = (await res.json()) as GroupMemberResponse;
-      const latestMembers: Member[] = Array.isArray(data.members)
-        ? data.members
+      const res = await axios.get<GroupMemberResponse>(
+        `${API_BASE_URL}/group_member.php`,
+        { params: { group_id: GROUP_ID } }
+      );
+
+      const latestMembers = Array.isArray(res.data.members)
+        ? res.data.members
         : [];
 
       const otherAdmins = latestMembers.filter(
@@ -347,18 +361,18 @@ export default function GroupInfo() {
           style: "destructive",
           onPress: async () => {
             try {
-              const resDelete = await fetch(`${API_BASE}/group_member.php`, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  group_id: GROUP_ID,
-                  user_ids: [userId],
-                  logged_in_user: userId,
-                }),
-              });
+              const resDelete = await axios.delete<GroupMemberResponse>(
+                `${API_BASE_URL}/group_member.php`,
+                {
+                  data: {
+                    group_id: GROUP_ID,
+                    user_ids: [userId],
+                    logged_in_user: userId,
+                  },
+                }
+              );
 
-              const dataDelete = (await resDelete.json()) as GroupMemberResponse;
-              if (dataDelete.success) {
+              if (resDelete.data.success) {
                 Alert.alert("Success", "You have exited the group.");
                 navigation.reset({
                   index: 0,
@@ -367,7 +381,7 @@ export default function GroupInfo() {
               } else {
                 Alert.alert("Error", "Failed to exit group.");
               }
-            } catch (err: any) {
+            } catch (err) {
               console.error("Exit group error:", err);
               Alert.alert("Error", "Failed to exit group.");
             }
@@ -388,17 +402,17 @@ export default function GroupInfo() {
         style: "destructive",
         onPress: async () => {
           try {
-            const res = await fetch(`${API_BASE}/groups.php`, {
-              method: "DELETE",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                group_id: GROUP_ID,
-                logged_in_user: userId,
-              }),
-            });
-            const data = (await res.json()) as GroupMemberResponse;
+            const res = await axios.delete<GroupMemberResponse>(
+              `${API_BASE_URL}/groups.php`,
+              {
+                data: {
+                  group_id: GROUP_ID,
+                  logged_in_user: userId,
+                },
+              }
+            );
 
-            if (data.success) {
+            if (res.data.success) {
               Alert.alert("Success", "Group deleted.");
               navigation.reset({
                 index: 0,
@@ -407,7 +421,7 @@ export default function GroupInfo() {
             } else {
               Alert.alert("Error", "Failed to delete group");
             }
-          } catch (err: any) {
+          } catch (err) {
             console.error("Delete group error:", err);
             Alert.alert("Error", "Failed to delete group");
           }
@@ -415,6 +429,109 @@ export default function GroupInfo() {
       },
     ]);
   };
+
+
+  // -------------------- Report user --------------------
+
+  // modal state
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [customReason, setCustomReason] = useState("");
+  const [reportTargetId, setReportTargetId] = useState<number | null>(null);
+  const [reportTargetName, setReportTargetName] = useState<string>("");
+  const [reportError, setReportError] = useState<string | null>(null);
+
+
+  // list of report reasons
+  const GROUP_REPORT_REASONS = [
+    "Spam",
+    "Harassment or hate speech",
+    "Inappropriate content",
+    "Scam or fraud",
+    "Impersonation",
+    "Other",
+  ];
+
+  // when user presses report button on group member
+  const reportUser = (targetId: number, targetUsername: string) => {
+    setReportTargetId(targetId);
+    setReportTargetName(targetUsername);
+
+    Alert.alert(
+      "Report User",
+      `Are you sure you want to report ${targetUsername}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes, Continue",
+          style: "destructive",
+          onPress: () => {
+            setSelectedReason(null);
+            setCustomReason("");
+            setShowReasonModal(true);
+          },
+        },
+      ]
+    );
+  };
+
+  // submit report
+ const submitReport = async () => {
+  if (!selectedReason) {
+    Alert.alert("Required", "Please select a report reason.");
+    return;
+  }
+
+  if (selectedReason === "Other" && !customReason.trim()) {
+    Alert.alert("Required", "Please enter your reason.");
+    return;
+  }
+
+  if (!userId || !reportTargetId || !GROUP_ID) return;
+
+  if (reportTargetId === userId) {
+    Alert.alert("Not allowed", "You cannot report yourself.");
+    return;
+  }
+
+  const finalReason =
+    selectedReason === "Other" ? customReason.trim() : selectedReason;
+
+    try {
+      setReportError(null);
+
+      const { data } = await axios.post<{ success: boolean; error?: string }>(
+        `${API_BASE_URL}/reports.php`,
+        {
+          chat_type: "group",
+          report_type: "user",
+          reporter_id: userId,
+          reported_user_id: reportTargetId,
+          group_id: GROUP_ID,
+          reason: finalReason,
+        }
+      );
+
+      if (data.success) {
+      Alert.alert(
+        "Report Submitted",
+        "Thank you. Our team will review this report."
+      );
+    } else {
+      Alert.alert("Error", data.error || "Failed to submit report.");
+    }
+  } catch (err) {
+    console.error("Report error:", err);
+    Alert.alert("Error", "Could not submit report.");
+  }
+
+  setShowReasonModal(false);
+  setSelectedReason(null);
+  setCustomReason("");
+  setReportTargetId(null);
+};
+
+
 
   // -------------------- Render --------------------
   if (loading || !userId)
@@ -456,6 +573,15 @@ export default function GroupInfo() {
 
                 {canManage && (
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  {/* Report User Button */}
+                    <TouchableOpacity
+                      style={[styles.reportButton]}
+                      onPress={() => reportUser(item.id, item.username)}
+                    >
+                      <MaterialIcons name="report" size={20} color="#FF3B30" />
+                    </TouchableOpacity>
+
+                    {/* Admin Button */}
                     <TouchableOpacity
                       style={[styles.toggleButton, { backgroundColor: TINT_COLOR }]}
                       onPress={() =>
@@ -469,6 +595,7 @@ export default function GroupInfo() {
                       />
                     </TouchableOpacity>
 
+                    {/* Remove Button */}
                     <TouchableOpacity
                       style={[styles.removeButton, { backgroundColor: "#FF3B30" }]}
                       onPress={() => removeMember(item.id, item.username)}
@@ -513,36 +640,87 @@ export default function GroupInfo() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1, marginBottom: 70 }}>
-                {allUsers
-                  .filter((u) =>
-                    u.username.toLowerCase().includes(search.toLowerCase())
-                  )
-                  .map((u) => (
-                    <TouchableOpacity
-                      key={u.id}
-                      style={[
-                        styles.userRow,
-                        { borderColor: BORDER_COLOR },
-                        selectedUsers.includes(u.id) && styles.userRowSelected,
-                      ]}
-                      onPress={() => toggleSelectUser(u.id)}
-                    >
-                      <Text style={{ color: TEXT_COLOR }}>{u.username}</Text>
-                    </TouchableOpacity>
-                  ))}
-              </ScrollView>
+              <FlatList
+                data={allUsers.filter((u) =>
+                  u.username.toLowerCase().includes(search.toLowerCase())
+                )}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item: u }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.userRow,
+                      { borderColor: BORDER_COLOR },
+                      selectedUsers.includes(u.id) && styles.userRowSelected,
+                    ]}
+                    onPress={() => toggleSelectUser(u.id)}
+                  >
+                    <Text style={{ color: TEXT_COLOR, flex: 1 }}>{u.username}</Text>
+                    {selectedUsers.includes(u.id) && <MaterialIcons name="check-circle" size={20} color={TINT_COLOR} />}
+                  </TouchableOpacity>
+                )}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
+              />
 
-              <View style={[styles.footer, { paddingBottom: insets.bottom + 50 }]}>
+              <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: TINT_COLOR }]}
                   onPress={addSelectedUsers}
                 >
-                  <Text style={[styles.addButtonText, { color: BG_COLOR }]}>Add Selected</Text>
+                  <Text style={[styles.addButtonText, { color: BG_COLOR }]}>
+                    Add Selected {selectedUsers.length > 0 ? `(${selectedUsers.length})` : ""}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           </Animated.View>
+        )}
+
+        {showReasonModal && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Select Report Reason</Text>
+
+              {GROUP_REPORT_REASONS.map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  style={styles.radioRow}
+                  onPress={() => setSelectedReason(reason)}
+                >
+                  <View style={styles.radioOuter}>
+                    {selectedReason === reason && (
+                      <View style={styles.radioInner} />
+                    )}
+                  </View>
+                  <Text style={styles.radioText}>{reason}</Text>
+                </TouchableOpacity>
+              ))}
+
+              {selectedReason === "Other" && (
+                <TextInput
+                  placeholder="Enter your reason..."
+                  value={customReason}
+                  onChangeText={setCustomReason}
+                  style={styles.reasonInput}
+                  multiline
+                />
+              )}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setShowReasonModal(false)}
+                >
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.submitBtn} onPress={submitReport}>
+                  <Text style={{ color: "#fff" }}>Send Report</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -673,10 +851,120 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: TINT_COLOR,
     paddingVertical: 12,
-    paddingHorizontal: 50,
+    width: "80%",
+    alignItems: "center",
     borderRadius: 12,
   },
   addButtonText: { color: BG_COLOR,
     fontWeight: "bold",
     fontSize: 16 },
+
+  reportButton: {
+    padding: 8,
+    marginRight: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FF3B30",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  //----style for report------
+
+  radioRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#0078fe",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#0078fe"
+  },
+  radioText: { fontSize: 15 },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    minHeight: 60,
+    textAlignVertical: "top"
+  },
+  modalBox: {
+    width: "85%",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 16
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 12
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 15
+  },
+  cancelBtn: {
+    padding: 10,
+    marginRight: 10
+  },
+  submitBtn: {
+    backgroundColor: "#0078fe",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6
+  },
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+
+  card: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    elevation: 10,
+  },
+
+  rowButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 15,
+  },
+
+   modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000
+  },
+
+
 });

@@ -93,11 +93,11 @@ export const ReportsSkeleton = () => (
     </View>
     <View style={styles.card}>
       <SkeletonItem width={150} height={20} style={{ marginBottom: 16 }} />
-      <SkeletonItem width="100%" height={180} borderRadius={8} />
+      <SkeletonItem width="100%" height={200} borderRadius={8} />
     </View>
     <View style={styles.card}>
       <SkeletonItem width={150} height={20} style={{ marginBottom: 16 }} />
-      <SkeletonItem width="100%" height={180} borderRadius={8} />
+      <SkeletonItem width="100%" height={200} borderRadius={8} />
     </View>
     <View style={styles.card}>
       <SkeletonItem width={120} height={20} style={{ marginBottom: 16 }} />
